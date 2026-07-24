@@ -19,14 +19,22 @@ Each # %% marks a new notebook cell.
 # This is called EDA — Exploratory Data Analysis.
 
 # %%
+import matplotlib
+matplotlib.use("Agg")   # non-interactive backend — works outside Jupyter too
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import seaborn as sns
 import sys
-import os
+from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Anchor all paths relative to THIS file, not wherever Python was launched from
+NOTEBOOK_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = NOTEBOOK_DIR.parent
+FIGURES_DIR  = PROJECT_ROOT / "outputs" / "figures"
+FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+
+sys.path.insert(0, str(PROJECT_ROOT))
 from src.data_loader import load_raw_tables, build_master_df, add_parsed_lap_times
 
 plt.style.use("seaborn-v0_8-darkgrid")
@@ -85,8 +93,9 @@ ax.set_ylabel("Podium Rate")
 ax.set_title("Podium Rate by Starting Grid Position (1950–2024)")
 ax.set_xticks(range(1, 21))
 plt.tight_layout()
-plt.savefig("../outputs/figures/podium_rate_by_grid.png", dpi=150)
-plt.show()
+plt.savefig(FIGURES_DIR / "podium_rate_by_grid.png", dpi=150)
+plt.close()
+print("  Saved: podium_rate_by_grid.png")
 
 # %% [markdown]
 # ## Key question 2: Class balance
@@ -106,8 +115,9 @@ ax.bar(["No Podium", "Podium"], balance.values, color=["#e74c3c", "#2ecc71"])
 ax.set_ylabel("Proportion of rows")
 ax.set_title("Target Variable Class Balance")
 plt.tight_layout()
-plt.savefig("../outputs/figures/class_balance.png", dpi=150)
-plt.show()
+plt.savefig(FIGURES_DIR / "class_balance.png", dpi=150)
+plt.close()
+print("  Saved: class_balance.png")
 
 # %% [markdown]
 # ## Key question 3: How much qualifying data is available?
@@ -143,8 +153,9 @@ ax.set_ylabel("Race Wins")
 ax.set_title("Top 15 Constructors by Race Wins (1950–2024)")
 ax.tick_params(axis="x", rotation=45)
 plt.tight_layout()
-plt.savefig("../outputs/figures/constructor_wins.png", dpi=150)
-plt.show()
+plt.savefig(FIGURES_DIR / "constructor_wins.png", dpi=150)
+plt.close()
+print("  Saved: constructor_wins.png")
 
 # %% [markdown]
 # ## Key question 5: Races per year
@@ -161,7 +172,8 @@ ax.set_xlabel("Year")
 ax.set_ylabel("Number of Races")
 ax.set_title("F1 Races Per Season (1950–2024)")
 plt.tight_layout()
-plt.savefig("../outputs/figures/races_per_year.png", dpi=150)
-plt.show()
+plt.savefig(FIGURES_DIR / "races_per_year.png", dpi=150)
+plt.close()
+print("  Saved: races_per_year.png")
 
 print("\nDone! Review the figures in outputs/figures/")
