@@ -11,7 +11,7 @@ build/
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb_checkpoints
+**/.ipynb_checkpoints/
 
 # Virtual environments
 venv/
@@ -27,6 +27,9 @@ data/processed/*.csv
 models/*.pkl
 models/*.json
 models/*.bin
+
+# Generated outputs — plots are reproducible, no need to track
+outputs/figures/
 
 # OS
 .DS_Store
