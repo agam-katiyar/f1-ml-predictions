@@ -1,10 +1,5 @@
 """
-model.py
-
-Handles training, evaluation, and saving of ML models.
-
-We keep the model code separate from notebooks so you can import it
-cleanly and avoid copy-pasting the same boilerplate across notebooks.
+model.py — training, evaluation, and saving models.
 """
 
 import numpy as np
@@ -26,7 +21,7 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
-MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
+MODELS_DIR  = Path(__file__).resolve().parent.parent / "models"
 FIGURES_DIR = Path(__file__).resolve().parent.parent / "outputs" / "figures"
 
 
@@ -37,15 +32,11 @@ def temporal_train_test_split(
     test_year: int = 2020,
 ) -> tuple:
     """
-    Splits data by year rather than randomly.
+    Split by year, not randomly.
 
-    Why temporal split instead of random? Because F1 results have
-    time-based dependencies — a driver's rolling form leaks information
-    forward in time. A random split would let future data "inform" past
-    predictions, giving artificially high accuracy. Splitting at a fixed
-    year is closer to real-world deployment: train on old data, predict new.
-
-    Returns: X_train, X_test, y_train, y_test
+    Random splits leak future form data into past predictions because of
+    the rolling features. Training on pre-2020, testing on 2020+ is closer
+    to how the model would actually be used.
     """
     train_mask = df["year"] < test_year
     test_mask  = df["year"] >= test_year
@@ -55,8 +46,8 @@ def temporal_train_test_split(
     y_train = df.loc[train_mask, target_col]
     y_test  = df.loc[test_mask,  target_col]
 
-    print(f"Train: {train_mask.sum()} rows ({df.loc[train_mask, 'year'].min()}–{test_year-1})")
-    print(f"Test:  {test_mask.sum()} rows ({test_year}–{df.loc[test_mask, 'year'].max()})")
+    print(f"Train: {train_mask.sum()} rows  ({int(df.loc[train_mask, 'year'].min())}–{test_year-1})")
+    print(f"Test:  {test_mask.sum()} rows  ({test_year}–{int(df.loc[test_mask, 'year'].max())})")
     print(f"Podium rate — train: {y_train.mean():.1%}  test: {y_test.mean():.1%}")
 
     return X_train, X_test, y_train, y_test
@@ -64,17 +55,11 @@ def temporal_train_test_split(
 
 def build_logistic_pipeline() -> Pipeline:
     """
-    Returns a sklearn Pipeline that chains two steps:
-      1. StandardScaler — normalises all features to have mean=0, std=1
-      2. LogisticRegression — the classifier
+    Logistic regression wrapped in a Pipeline with a scaler.
 
-    Why scale? Logistic regression is sensitive to feature magnitudes.
-    Grid position (1–20) and qualifying gap (0–5 seconds) are on
-    completely different scales. Scaling puts them on equal footing.
-
-    Pipeline ensures the scaler is fitted only on training data and
-    applied consistently to test data — prevents a subtle bug called
-    data leakage from scaling.
+    Scaling is required — grid position (1–20) and qualifying gap (seconds)
+    are on very different scales. Pipeline also prevents the scaler from
+    accidentally fitting on test data.
     """
     return Pipeline([
         ("scaler", StandardScaler()),
@@ -88,16 +73,10 @@ def build_logistic_pipeline() -> Pipeline:
 
 def build_xgboost_model() -> XGBClassifier:
     """
-    XGBoost classifier with sensible defaults.
+    XGBoost with settings tuned for the class imbalance (~13% podiums).
 
-    scale_pos_weight handles class imbalance: ~83% non-podium vs ~17%
-    podium. Setting it to (non-podium count / podium count ≈ 5) tells
-    XGBoost to penalise misclassifying the minority class (podiums) 5×
-    more than the majority class.
-
-    n_estimators = number of trees to build (boosting rounds).
-    learning_rate = how much each new tree corrects the previous error.
-    max_depth = how deep each tree grows (controls overfitting).
+    scale_pos_weight=5 roughly matches the 5:1 ratio of non-podiums to
+    podiums, so the model pays more attention to the minority class.
     """
     return XGBClassifier(
         n_estimators=300,
@@ -106,27 +85,18 @@ def build_xgboost_model() -> XGBClassifier:
         scale_pos_weight=5,
         subsample=0.8,
         colsample_bytree=0.8,
-        use_label_encoder=False,
         eval_metric="logloss",
         random_state=42,
     )
 
 
 def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, model_name: str):
-    """
-    Prints a full evaluation report and shows two plots:
-      1. Confusion matrix — raw count of TP/TN/FP/FN
-      2. ROC curve — AUC score, overall ranking quality
-
-    predict_proba returns a 2D array — [:, 1] takes the second column
-    which is the probability of class 1 (podium). This is used for
-    AUC-ROC and the ROC curve.
-    """
+    """Print classification report + save confusion matrix and ROC curve."""
     y_pred  = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
     print(f"\n{'='*50}")
-    print(f"  {model_name} — Evaluation Report")
+    print(f"  {model_name}")
     print(f"{'='*50}")
     print(classification_report(y_test, y_pred, target_names=["No Podium", "Podium"]))
     print(f"AUC-ROC: {roc_auc_score(y_test, y_proba):.4f}")
@@ -136,10 +106,7 @@ def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, model_name: s
 
     cm = confusion_matrix(y_test, y_pred)
     sns.heatmap(
-        cm,
-        annot=True,
-        fmt="d",
-        cmap="Blues",
+        cm, annot=True, fmt="d", cmap="Blues",
         xticklabels=["No Podium", "Podium"],
         yticklabels=["No Podium", "Podium"],
         ax=axes[0],
@@ -162,22 +129,16 @@ def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, model_name: s
     save_path = FIGURES_DIR / f"{model_name.lower().replace(' ', '_')}_eval.png"
     plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.show()
-    print(f"Plot saved to {save_path}")
+    print(f"Saved: {save_path}")
 
 
 def save_model(model, filename: str):
-    """
-    Serialises a trained model to disk using joblib.
-
-    joblib is preferred over pickle for sklearn objects because it
-    handles large numpy arrays more efficiently.
-    """
+    """Save trained model to models/ using joblib."""
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     path = MODELS_DIR / filename
     joblib.dump(model, path)
-    print(f"Model saved to {path}")
+    print(f"Saved: {path}")
 
 
 def load_model(filename: str):
-    path = MODELS_DIR / filename
-    return joblib.load(path)
+    return joblib.load(MODELS_DIR / filename)
